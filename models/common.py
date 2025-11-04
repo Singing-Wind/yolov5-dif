@@ -585,6 +585,21 @@ class C3k2(C2f):
             C3k(self.c, self.c, 2, shortcut, g) if c3k else Bottleneck(self.c, self.c, shortcut, g, k=(3, 3)) for _ in range(n)
         )
 
+class C3k2_parrallel(nn.Module):
+    def __init__(self, c1, c2, n=1, shortcut=True, g=1, e=0.5, k=3):
+        """Initializes the C2PSA module with specified channels, number of layers, and configurations."""
+        self.c1 = c1
+        self.C3k2_1 = C3k2(c1, c2, n, shortcut, g, e)
+        self.C3k2_2 = C3k2(c1, c2, n, shortcut, g, e)
+
+    def forward(self, x):
+        """Forward pass through C3k2_parrallel layer."""
+        assert x.shape[1] == self.c1 * 2, "channel 不匹配！" # channel等于原先两倍
+        x1 = self.C3k2_1(x[:, :self.c1])
+        x2 = self.C3k2_2(x[:, -self.c1:])
+        return torch.cat([x1, x2], dim=1)
+        
+
         
 class C2PSA(nn.Module):
     """
