@@ -1,0 +1,4 @@
+{
+    "images_dir": "/media/data4T/datas/remote/RSImage",
+    "model_best_path": "../models/s-obb-80.19-61.04-dfl=0/weights/last.pt"
+}

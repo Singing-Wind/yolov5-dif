@@ -1,0 +1,4 @@
+{
+    "images_dir": "/media/data4T/datas/SAR-SSDD SSDD+/expend_data/images",
+    "model_best_path": "../models/SSDD-96.27-21.7/weights/best.pt"
+}

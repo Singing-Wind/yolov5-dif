@@ -1,0 +1,4 @@
+{
+    "images_dir": "/media/data4T/datas/SAR-TZ-ship/images",
+    "model_best_path": "../models/TZ-ship-99.48-99.37/weights/last.pt"
+}

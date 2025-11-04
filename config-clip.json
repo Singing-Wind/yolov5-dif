@@ -1,0 +1,16 @@
+{
+    "resolution": [224,224],
+    "block_size": 4,
+    "train_path": "E:/datas/coco128",
+    "val_path": "E:/datas/coco128",
+    "val_count": 65,
+    "batch_size": 12,
+    "batch_size_val": 12,
+    "learning_rate": 0.001,
+    "epochs": 200,
+    "log_path": "runs/exp82",
+    "warmup_epochs": 1.0,
+    "epochT": 10,
+    "model_best_path": "runs/exp8/best.pt",
+    "resume": 0
+}

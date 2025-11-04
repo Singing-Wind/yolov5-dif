@@ -1,0 +1,40 @@
+一个多维矩阵a[n0,n1,n2,....]
+
+1.可以构造几个整数索引数组b[n],c[n],d[n]
+那么a[b,c,d]的shape是[n,...]
+
+2.一个高维数组a[n0,n1,n2]和一个数值g之间做判断a > g形成一个bool数组，
+这个bool数组a > g的shape和a一样大[n0,n1,n2],
+可以用代码  n0,n1,n2 = a > g
+转换成几个整数索引数组n0[n],n1[n],n2[n]， 数组a中所有满足a[i,j,k]>g的n元素集合记为n0[n],n1[n],n2[n]
+n的大小由bool数组a > g中true的数量决定
+
+3.可以通过b=a[:,:,:,i3,i4,i5]>g构造形如b[n0,n1,n2]的bool矩阵
+那么a[b]的shape是[nt=[b中true的数量],i3,i4,i5]
+
+4.b[n0,n1,....]  c[n0,n1,....]是两个等维度的数组，
+a[b,c]=x是一个批量赋值语句，一次给n0*n1*....个值赋值
+
+5.遇到None一般都是两个tensor之间做运算，None放在第几维就是扩充哪一维的维度！
+可以通过这种竖式得到空缺的维度
+案例1.  r = t[:, :, 4:6] / anchors[:, None]
+ # t[na,nt,7]                     t[:, :, 4:6]的shape是    t      [na,nt,2]
+ # anchors[na,2]  anchors[:, None]的shape是anchors[na, ?,2]  得到?=nt
+ #                                                              -----------------------
+                #                                                            [na,nt,2]
+                r = t[:, :, 4:6] / anchors[:, None] 的shape=[na,nt,2]
+                # r[na,nt,2] / anchors[na,?,2] = r[na,nt,2]
+案例2.  offsets = torch.zeros_like(gxy)[None] + off[:, None]
+# gxy[n_match_obj, 2 = (xy)]   torch.zeros_like(gxy)[None]的shape是[?1, n_match_obj, 2]
+# off[5,2]  off[:, None]的shape是                                                       [5,                 ?2, 2]
+#                                                                                                 --------------------------                                                                  
+# offsets的shape是                                                                           [5, n_match_obj, 2]
+
+6. j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']
+# r1 = torch.max(r, 1. / r)的shape是r1[na,nt,2]
+# r1.max(2)意思是[r和1/r]在编号(2)的维度找最大值[0]，求最大值后会把维度2去掉,shape变为[na,nt]
+# 得到r1.max(2)[0]是shape为[na,nt]的最大值
+# 得到r1.max(2)[1]是shape为[na,nt]的最大值对应的整数编号{0,1}
+ j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
+# 意思是[r和1/r]在编号(2)的维度找最大值[0],求最大值后会把维度2去掉，j的shape为[na,nt]的bool数组
+# r, 1. / r两者最大值都比较小，说明接近1，说明和相应anchor比较匹配

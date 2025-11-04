@@ -1,0 +1,7 @@
+{
+    "images_dir": "/home/liu/workspace/remote/DOTA/images",
+    "labels_dir": "/media/liu/088d8f6e-fca3-4aed-871f-243ad962413b1/datas/dota1.5/labels",
+    "model_best_path": "../models/dota-yolov11s-obb-bs16-0.802-0.614-epo99-9/weights/best.pt",
+    "remote_model_path": "/home/liu/workspace/remote/models/weights-dota-iou95.6/best.pt",
+    "fly_num": 9
+}

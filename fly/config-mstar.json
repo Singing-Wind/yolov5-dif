@@ -1,0 +1,4 @@
+{
+    "images_dir": "/media/data4T/datas/SAR-mstar/expend_data/images",
+    "model_best_path": "../models/mstar-99.5-89.7/weights/best.pt"
+}

@@ -1,0 +1,117 @@
+images/xxx.jpg
+labels/xxx.txt
+labels/xxx.pol
+格式
+xxx.txt就是经典的yolo格式，每一行一个目标
+cls x y w h
+就是类编号 目标中心点宽 目标中心点高 目标宽 目标高
+xxx.pol
+和
+xxx.txt每一行一一对应就行了，格式是
+cls x1 y1 x2 y2 x3 y3 ...... xn yn
+也就是目标的外包多边形轮廓点，如果是闭合目标区域，xn yn 和 x1 y1要能接上，如果不闭合，可以不接上，但同一类型的要么能接上，要么不接上。
+
+
+
+如果数据集只给了每个目标的二值分割图，可以采用以下方案得到pol文件：
+首先根据标签图像的不同类别的颜色，分割得到2值图，
+然后cv2.findContours为2值图找轮廓contours
+遍历contours得到每个contour，再生成contour对应的pol文件和txt文件
+最小外接矩形框生成.pts文件和.txt文件一起放到labels文件夹
+images/xxx.jpg
+labels/xxx.txt
+labels/xxx.pol
+xxx.txt是每行一个目标
+cls x y w h
+xxx.pol是每行一个目标，与txt对应
+cls x1 y1 x2 y2 x3 y3 x4 y4 x5 y5 ... xn yn
+
+
+这个是gpt推荐的用分割图转contour的代码，最后你再把contour转pol文件和txt文件就行了
+txt文件就是目标的上下左右四个边界框min(x)和max(x)得到
+x=(x最大值+x最小值)/2 / W图像宽
+y=(y最大值+y最小值)/2 / H图像高
+w=(x最大值-x最小值) / W图像宽
+h=(y最大值-y最小值) / H图像宽
+就行了，
+注意pol文件也要归一化，x坐标/W y坐标/H
+
+def get_affine_transform(center, s, angle, dst_offset):
+    angle_rad = np.deg2rad(angle)
+    cos_rad = np.cos(angle_rad)
+    sin_rad = np.sin(angle_rad)
+    cx,cy = center
+    dx,dy = dst_offset
+    transform_matrix = np.array([
+        [ s*cos_rad, s*sin_rad, dx - s*( cos_rad*cx+sin_rad*cy)],
+        [-s*sin_rad, s*cos_rad, dy - s*(-sin_rad*cx+cos_rad*cy)]
+    ])
+    return transform_matrix
+
+import os
+import shutil
+import cv2
+import numpy as np
+import random
+from tqdm import tqdm
+
+import torch
+torch.manual_seed(88)
+import random
+random.seed(88)
+import numpy as np
+np.random.seed(88)
+
+
+
+
+
+现在在文件夹结构是这样的
+images/xxxx.tif   #存放多个tif文件是rgb原始图像
+seg/xxxx.tif         #存放多个tif文件是对应的二值分割图像
+以上两个文件夹中的文件名是一一对应一致的，我需要逐个遍历每一张图像进行抠图处理。
+用户配置输出文件夹output
+现在我需要将二值图seg/xxxx.tif逐个跟踪他内部的contours。得到其中每个contour的n个点坐标pts[n,2]，计算每个contour的中心点坐标center = np.mean(pts,axis=0) #center[n]
+然后将center加上一个-diz,diz范围的随机偏移，按函数代码get_affine_transform计算仿射变换矩阵M23，
+1.得到新坐标系下CROP_SIZE抠图images/xxxx.tif 得到的图像保存在output/images/xxxx.jpg，
+2.对每个轮廓的中心点都进行M23变换，判断所有轮廓转换后的中心点是否在CROP_SIZE=(640,640)范围内进行过滤，得到中心点在范围内的轮廓再进一步对其对应的轮廓点都做M23变换，对应的新的轮廓链经过归一化处理保存成pol文件和txt文件，注意pol文件和txt文件里凡是涉及x坐标的都要除以图像宽W,凡是涉及y坐标的，都要除以图像高H，要进行坐标归一化。
+
+同时我需要对每个目标直接或间接被抠的次数计数，（变换坐标后还在CROP_SIZE=(640,640)内部的目标会计数会+1），一个目标最多倍扣取max_selection_per_obj次数就不能再被直接扣取。
+
+请用python代码实现以上功能。
+
+
+
+
+
+
+
+第2次发问：
+
+# Transform and filter contours
+        txt_lines = []
+        pol_lines = []
+        for j, (key_j, pts_j) in enumerate(valid_contours):
+            center_j = np.mean(pts_j, axis=0)
+            center_affine = apply_affine(center_j[None, :], M)[0]
+            if 0 <= center_affine[0] < CROP_SIZE[0] and 0 <= center_affine[1] < CROP_SIZE[1]:
+                # Update counter
+                if selection_counts.get(key_j, 0) < MAX_SELECTION_PER_OBJ:
+                    selection_counts[key_j] = selection_counts.get(key_j, 0) + 1
+                    # Transform points
+                    pts_affine = apply_affine(pts_j, M)
+                    x_min, y_min = pts_affine.min(axis=0)
+                    x_max, y_max = pts_affine.max(axis=0)
+                    # Normalize bbox for .txt
+                    xc = (x_max + x_min) / 2 / CROP_SIZE[0]
+                    yc = (y_max + y_min) / 2 / CROP_SIZE[1]
+                    w = (x_max - x_min) / CROP_SIZE[0]
+                    h = (y_max - y_min) / CROP_SIZE[1]
+                    txt_lines.append(f"0 {xc:.6f} {yc:.6f} {w:.6f} {h:.6f}")
+                    # Normalize polygon for .pol
+                    pts_norm = pts_affine.copy()
+                    pts_norm[:, 0] /= CROP_SIZE[0]
+                    pts_norm[:, 1] /= CROP_SIZE[1]
+                    flat_coords = " ".join([f"{p[0]:.6f} {p[1]:.6f}" for p in pts_norm])
+                    pol_lines.append(f"0 {flat_coords}")
+我的意思是对以上整段代码进行bool数组过滤后再遍历

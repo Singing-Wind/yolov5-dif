@@ -1,0 +1,77 @@
+train.py重点看
+1.loss
+utils/loss.py中的
+class ComputeLoss:
+中的def __call__(self, p, targets):是loss函数的主体，其中调用了self.build_targets(p, targets)是
+将标注数据targets转换成便于loss计算的四个切片tensor：tcls, tbox, indices, anchors
+
+models/yolo.py  中的Model类建立了处理整体模型架构的循环机制
+class Model(nn.Module):
+建立了处理整体模型通用架构的循环机制
+class Detect(nn.Module):
+是用于将网络输出转换成目标信息的head末端模块
+ 
+2.dataset   待补充
+
+
+
+
+detect.py重点看
+run函数是推理总架构，里面很多废代码，真正有用的就是
+pred = model(img, augment=augment, visualize=visualize)[0]
+#pred[b=1,nt=3*[80*80+40*40+20*20],4+1+cls]
+pred = non_max_suppression(pred, conf_thres, iou_thres, classes, agnostic_nms, max_det=max_det)
+# pred[list][n_nms,6=4(box)+1(cobf)+1(cls)]
+其他都没啥用!
+
+1.models/yolo.py  中的
+class Detect(nn.Module):
+是用于将网络输出转换成目标信息的head末端模块
+   def forward(self, x):
+        z = []  # inference output
+        for i in range(self.nl):#遍历本层输出的所有anchors
+            x[i] = self.m[i](x[i])  # conv
+            bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
+            #x[i][b=1,na,(no==4+1+nc),ny,nx]
+            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
+            #x[i][b=1,na*(no==4+1+nc),ny,nx]-->x[i][b=1,na,ny,nx,no]
+            if not self.training:  # inference
+                if self.grid[i].shape[2:4] != x[i].shape[2:4] or self.onnx_dynamic:
+                    self.grid[i] = self._make_grid(nx, ny).to(x[i].device)
+                #grid[i][b=1,1,ny,nx,2]
+
+                y = x[i].sigmoid()
+                #y[b=1,na,ny,nx,no]
+                y[..., 0:2] = (y[..., 0:2] * 2. - 0.5 + self.grid[i]) * self.stride[i]  # xy
+                y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
+                # y.view(bs, -1, self.no)的shape是[b=1,[na*ny*nx],(no==4+1+nc)]
+                z.append(y.view(bs, -1, self.no))
+                # 所有anchors全部一股脑丢给z集合
+
+        return x if self.training else (torch.cat(z, 1), x)
+
+2.non_max_suppression的实现在utils/general.py里面
+non_max_suppression干了一件很坏的事情是他有点挂羊头卖狗肉的意思，他其实干了以下三件事
+1.obj输出的conf阈值过滤
+xc = prediction[..., 4] > conf_thres
+x = x[xc[xi]] #xi就是batch，推理时xi==0
+2. class的conf过滤
+x[:, 5:] *= x[:, 4:5]  # conf = obj_conf * cls_conf
+# x[nobj,4(xywh)+1(obj)+cls]
+            conf, j = x[:, 5:].max(1, keepdim=True) #选择class输出最大的conf作为最终可信度，j作为识别类标签
+            # x[:, 5:]shape = [nobj,cls]
+            # conf[nobj,1]
+            # j[nobj,1]
+            x = torch.cat((box, conf, j.float()), 1)[conf.view(-1) > conf_thres]
+            # x[nobj_filt_cls,6==4(box)+1(conf)+1(j.float()==cls)]  在1号维度拼起来，再经过cls的conf过滤
+3.才是真正的nms过滤
+注意3点
+a)c = x[:, 5:6] * (0 if agnostic else max_wh)  # classes
+   boxes, scores = x[:, :4] + c, x[:, 4]  # boxes (offset by class), scores
+对不同类进行很大的偏移，使得不同类之间不会合并
+b)i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
+中输入的boxes前面通过box = xywh2xyxy(x[:, :4])得到目标的左上角-右下角坐标
+才能作为torchvision.ops.nms函数的接口
+c)输出i[n_nms]是合并后的保留框子集对应boxes[n,4]或scores[n]的编号集合
+n_nms<=n
+后面通过output[xi] = x[i]对已经经过objconf和class的conf过滤的目标x再进行一次过滤

@@ -1,0 +1,13 @@
+{
+    "resolution": [512,640],
+    "train_path": "/data/liujin/workspace/datas/coco2017/train",
+    "val_path": "/data/liujin/workspace/datas/coco2017/val",
+    "batch_size": 24,
+    "batch_size_val": 24,
+    "learning_rate": 0.001,
+    "epochs": 100,
+    "log_path": "runs/exp",
+    "warmup_epochs": 1.0,
+    "epochT": 1,
+    "model_best_path": "runs/exp/best.pt"
+}

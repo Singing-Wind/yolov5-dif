@@ -1,0 +1,4 @@
+{
+    "images_dir": "/home/liu/workspace/remote/DOTA/images",
+    "model_best_path": "../models/dota-yolov11s-obb-bs16-0.802-0.614-epo99-9/weights/last.pt"
+}
